@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI平板平衡训练演示</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .main-content {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+
+        .simulation-area {
+            flex: 2;
+            text-align: center;
+        }
+
+        .controls-area {
+            flex: 1;
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 10px;
+            border: 2px solid #e2e8f0;
+        }
+
+        #gameCanvas {
+            border: 3px solid #4a5568;
+            border-radius: 10px;
+            background: linear-gradient(to bottom, #87ceeb 0%, #98fb98 100%);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .controls h3 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .metrics {
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #cbd5e0;
+        }
+
+        .metric-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .metric-label {
+            font-weight: bold;
+            color: #4a5568;
+        }
+
+        .metric-value {
+            color: #667eea;
+            font-family: 'Courier New', monospace;
+        }
+
+        .training-progress {
+            background: #e6fffa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #38b2ac;
+        }
+
+        .progress-bar {
+            background: #cbd5e0;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            background: linear-gradient(90deg, #38b2ac, #4fd1c7);
+            height: 100%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        .description {
+            background: #fffaf0;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ed8936;
+        }
+
+        .description h3 {
+            color: #c05621;
+            margin-top: 0;
+        }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin: 15px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .status.training {
+            background: #fed7d7;
+            color: #c53030;
+        }
+
+        .status.converged {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status.idle {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI平板平衡训练演示</h1>
+        
+        <div class="description">
+            <h3>🎯 训练目标</h3>
+            <p>AI需要学会控制平板的旋转，使随机初始位置和速度的小球稳定在平板中心。AI可以获得小球位置、速度和平板角度信息，通过顺时针或逆时针旋转平板来实现平衡控制。</p>
+        </div>
+
+        <div class="main-content">
+            <div class="simulation-area">
+                <canvas id="gameCanvas" width="600" height="400"></canvas>
+                <div id="status" class="status idle">🔄 准备就绪</div>
+            </div>
+
+            <div class="controls-area">
+                <div class="controls">
+                    <h3>🎮 控制面板</h3>
+                    <div class="button-group">
+                        <button id="startBtn">开始训练</button>
+                        <button id="resetBtn">重置</button>
+                    </div>
+                    <div class="button-group">
+                        <button id="pauseBtn" disabled>暂停</button>
+                        <button id="stepBtn" disabled>单步执行</button>
+                    </div>
+                </div>
+
+                <div class="metrics">
+                    <h3>📊 实时数据</h3>
+                    <div class="metric-item">
+                        <span class="metric-label">小球位置:</span>
+                        <span class="metric-value" id="ballPos">0.00</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">小球速度:</span>
+                        <span class="metric-value" id="ballVel">0.00</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">平板角度:</span>
+                        <span class="metric-value" id="plateAngle">0.00°</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">AI动作:</span>
+                        <span class="metric-value" id="aiAction">待机</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">奖励值:</span>
+                        <span class="metric-value" id="reward">0.00</span>
+                    </div>
+                </div>
+
+                <div class="training-progress">
+                    <h3>🧠 训练进度</h3>
+                    <div class="metric-item">
+                        <span class="metric-label">训练轮次:</span>
+                        <span class="metric-value" id="episode">0</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">成功率:</span>
+                        <span class="metric-value" id="successRate">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">平均奖励:</span>
+                        <span class="metric-value" id="avgReward">0.00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 游戏状态
+        class GameState {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.isRunning = false;
+                this.isPaused = false;
+                
+                // 物理参数
+                this.gravity = 0.5;
+                this.platformLength = 300;
+                this.platformY = 300;
+                this.centerX = this.canvas.width / 2;
+                
+                // 平板状态
+                this.plateAngle = 0; // 弧度
+                this.plateAngularVelocity = 0;
+                
+                // 小球状态
+                this.ballX = 0; // 相对平板中心的位置
+                this.ballVelX = 0; // 相对平板的速度
+                this.ballY = 0; // 小球离平板的高度
+                this.ballVelY = 0;
+                
+                // AI状态
+                this.ai = new BalanceAI();
+                this.episode = 0;
+                this.stepCount = 0;
+                this.maxStepsPerEpisode = 1000;
+                this.totalReward = 0;
+                this.episodeRewards = [];
+                this.successCount = 0;
+                
+                this.reset();
+                this.setupEventListeners();
+                this.updateDisplay();
+                this.draw();
+            }
+            
+            reset() {
+                // 随机初始化小球位置和速度
+                this.ballX = (Math.random() - 0.5) * 200; // -100 到 100
+                this.ballVelX = (Math.random() - 0.5) * 10; // -5 到 5
+                this.ballY = 0;
+                this.ballVelY = 0;
+                
+                // 重置平板
+                this.plateAngle = (Math.random() - 0.5) * 0.5; // 小角度随机
+                this.plateAngularVelocity = 0;
+                
+                // 重置计数器
+                this.stepCount = 0;
+                this.totalReward = 0;
+            }
+            
+            setupEventListeners() {
+                document.getElementById('startBtn').addEventListener('click', () => {
+                    this.start();
+                });
+                
+                document.getElementById('resetBtn').addEventListener('click', () => {
+                    this.stop();
+                    this.reset();
+                    this.episode = 0;
+                    this.episodeRewards = [];
+                    this.successCount = 0;
+                    this.ai.reset();
+                    this.updateDisplay();
+                    this.draw();
+                });
+                
+                document.getElementById('pauseBtn').addEventListener('click', () => {
+                    this.togglePause();
+                });
+                
+                document.getElementById('stepBtn').addEventListener('click', () => {
+                    if (this.isPaused) {
+                        this.step();
+                    }
+                });
+            }
+            
+            start() {
+                this.isRunning = true;
+                this.isPaused = false;
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('pauseBtn').disabled = false;
+                document.getElementById('stepBtn').disabled = false;
+                this.updateStatus('training', '🤖 AI正在训练中...');
+                this.gameLoop();
+            }
+            
+            stop() {
+                this.isRunning = false;
+                this.isPaused = false;
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('pauseBtn').disabled = true;
+                document.getElementById('stepBtn').disabled = true;
+                this.updateStatus('idle', '🔄 准备就绪');
+            }
+            
+            togglePause() {
+                this.isPaused = !this.isPaused;
+                document.getElementById('pauseBtn').textContent = this.isPaused ? '继续' : '暂停';
+                this.updateStatus(this.isPaused ? 'idle' : 'training', 
+                                this.isPaused ? '⏸️ 已暂停' : '🤖 AI正在训练中...');
+                if (!this.isPaused) {
+                    this.gameLoop();
+                }
+            }
+            
+            updateStatus(className, text) {
+                const status = document.getElementById('status');
+                status.className = `status ${className}`;
+                status.textContent = text;
+            }
+            
+            step() {
+                // 获取当前状态
+                const state = this.getState();
+                
+                // AI决策
+                const action = this.ai.getAction(state);
+                
+                // 执行动作
+                this.executeAction(action);
+                
+                // 物理更新
+                this.updatePhysics();
+                
+                // 计算奖励
+                const reward = this.calculateReward();
+                this.totalReward += reward;
+                
+                // AI学习
+                const nextState = this.getState();
+                this.ai.learn(state, action, reward, nextState, this.isEpisodeEnd());
+                
+                this.stepCount++;
+                
+                // 检查episode结束条件
+                if (this.isEpisodeEnd()) {
+                    this.endEpisode();
+                }
+                
+                this.updateDisplay();
+                this.draw();
+            }
+            
+            gameLoop() {
+                if (!this.isRunning || this.isPaused) return;
+                
+                this.step();
+                
+                // 继续循环
+                if (this.isRunning) {
+                    setTimeout(() => this.gameLoop(), 50); // 20 FPS
+                }
+            }
+            
+            getState() {
+                return {
+                    ballPosition: this.ballX / 150, // 归一化
+                    ballVelocity: this.ballVelX / 10, // 归一化
+                    plateAngle: this.plateAngle / (Math.PI / 4), // 归一化
+                    plateAngularVelocity: this.plateAngularVelocity / 0.1 // 归一化
+                };
+            }
+            
+            executeAction(action) {
+                const torque = 0.002; // 扭矩强度
+                if (action === 1) { // 顺时针
+                    this.plateAngularVelocity += torque;
+                } else if (action === -1) { // 逆时针
+                    this.plateAngularVelocity -= torque;
+                }
+                // action === 0 不动作
+                
+                // 限制角速度
+                this.plateAngularVelocity = Math.max(-0.1, Math.min(0.1, this.plateAngularVelocity));
+                
+                // 更新角度
+                this.plateAngle += this.plateAngularVelocity;
+                
+                // 限制角度
+                this.plateAngle = Math.max(-Math.PI/3, Math.min(Math.PI/3, this.plateAngle));
+                
+                // 添加阻尼
+                this.plateAngularVelocity *= 0.95;
+            }
+            
+            updatePhysics() {
+                // 计算平板上的重力分量
+                const gravityComponent = this.gravity * Math.sin(this.plateAngle);
+                
+                // 更新小球速度（受重力影响）
+                this.ballVelX += gravityComponent;
+                
+                // 更新小球位置
+                this.ballX += this.ballVelX;
+                
+                // 添加空气阻力
+                this.ballVelX *= 0.995;
+                
+                // 边界检查
+                const maxPos = this.platformLength / 2;
+                if (Math.abs(this.ballX) > maxPos) {
+                    this.ballX = Math.sign(this.ballX) * maxPos;
+                    this.ballVelX = -this.ballVelX * 0.5; // 反弹并损失能量
+                }
+            }
+            
+            calculateReward() {
+                const positionError = Math.abs(this.ballX);
+                const velocityError = Math.abs(this.ballVelX);
+                const angleError = Math.abs(this.plateAngle);
+                
+                // 距离中心越近，速度越小，角度越小，奖励越高
+                const positionReward = Math.max(0, 1 - positionError / 150);
+                const velocityReward = Math.max(0, 1 - velocityError / 5);
+                const angleReward = Math.max(0, 1 - angleError / (Math.PI / 4));
+                
+                // 组合奖励
+                let reward = positionReward * 0.5 + velocityReward * 0.3 + angleReward * 0.2;
+                
+                // 如果小球在中心附近且几乎静止，给予额外奖励
+                if (positionError < 20 && velocityError < 1) {
+                    reward += 2;
+                }
+                
+                // 如果小球掉落或角度过大，给予惩罚
+                if (Math.abs(this.ballX) > this.platformLength / 2 - 10) {
+                    reward -= 5;
+                }
+                
+                return reward;
+            }
+            
+            isEpisodeEnd() {
+                return this.stepCount >= this.maxStepsPerEpisode || 
+                       Math.abs(this.ballX) > this.platformLength / 2 ||
+                       (Math.abs(this.ballX) < 20 && Math.abs(this.ballVelX) < 0.5 && this.stepCount > 100);
+            }
+            
+            endEpisode() {
+                this.episode++;
+                this.episodeRewards.push(this.totalReward);
+                
+                // 检查是否成功（小球稳定在中心）
+                if (Math.abs(this.ballX) < 20 && Math.abs(this.ballVelX) < 0.5) {
+                    this.successCount++;
+                }
+                
+                // 如果AI已经收敛，显示成功状态
+                if (this.episodeRewards.length >= 10) {
+                    const recentAvg = this.episodeRewards.slice(-10).reduce((a, b) => a + b) / 10;
+                    if (recentAvg > 50 && this.getSuccessRate() > 0.7) {
+                        this.updateStatus('converged', '🎉 AI已成功学会平衡！');
+                    }
+                }
+                
+                this.reset();
+            }
+            
+            getSuccessRate() {
+                if (this.episode === 0) return 0;
+                return this.successCount / this.episode;
+            }
+            
+            getAverageReward() {
+                if (this.episodeRewards.length === 0) return 0;
+                const recent = Math.min(10, this.episodeRewards.length);
+                return this.episodeRewards.slice(-recent).reduce((a, b) => a + b) / recent;
+            }
+            
+            updateDisplay() {
+                document.getElementById('ballPos').textContent = this.ballX.toFixed(2);
+                document.getElementById('ballVel').textContent = this.ballVelX.toFixed(2);
+                document.getElementById('plateAngle').textContent = (this.plateAngle * 180 / Math.PI).toFixed(1) + '°';
+                
+                const action = this.ai.lastAction;
+                let actionText = '待机';
+                if (action === 1) actionText = '顺时针 ↻';
+                else if (action === -1) actionText = '逆时针 ↺';
+                else if (action === 0) actionText = '保持 ●';
+                document.getElementById('aiAction').textContent = actionText;
+                
+                document.getElementById('reward').textContent = this.totalReward.toFixed(2);
+                document.getElementById('episode').textContent = this.episode.toString();
+                document.getElementById('successRate').textContent = (this.getSuccessRate() * 100).toFixed(1) + '%';
+                document.getElementById('avgReward').textContent = this.getAverageReward().toFixed(2);
+                
+                // 更新进度条
+                const progress = Math.min(100, this.getSuccessRate() * 100);
+                document.getElementById('progressFill').style.width = progress + '%';
+            }
+            
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // 绘制背景网格
+                this.drawGrid();
+                
+                // 绘制支点
+                ctx.fillStyle = '#4a5568';
+                ctx.beginPath();
+                ctx.arc(this.centerX, this.platformY, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 绘制平板
+                this.drawPlatform();
+                
+                // 绘制小球
+                this.drawBall();
+                
+                // 绘制目标区域
+                this.drawTarget();
+            }
+            
+            drawGrid() {
+                const ctx = this.ctx;
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+                ctx.lineWidth = 1;
+                
+                // 垂直线
+                for (let x = 0; x < this.canvas.width; x += 50) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, this.canvas.height);
+                    ctx.stroke();
+                }
+                
+                // 水平线
+                for (let y = 0; y < this.canvas.height; y += 50) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(this.canvas.width, y);
+                    ctx.stroke();
+                }
+            }
+            
+            drawPlatform() {
+                const ctx = this.ctx;
+                const halfLength = this.platformLength / 2;
+                
+                // 计算平板端点
+                const cos = Math.cos(this.plateAngle);
+                const sin = Math.sin(this.plateAngle);
+                
+                const x1 = this.centerX - halfLength * cos;
+                const y1 = this.platformY - halfLength * sin;
+                const x2 = this.centerX + halfLength * cos;
+                const y2 = this.platformY + halfLength * sin;
+                
+                // 绘制平板
+                ctx.strokeStyle = '#2d3748';
+                ctx.lineWidth = 6;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+                
+                // 绘制平板端点
+                ctx.fillStyle = '#e53e3e';
+                ctx.beginPath();
+                ctx.arc(x1, y1, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(x2, y2, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            drawBall() {
+                const ctx = this.ctx;
+                
+                // 计算小球在屏幕上的位置
+                const cos = Math.cos(this.plateAngle);
+                const sin = Math.sin(this.plateAngle);
+                
+                const ballScreenX = this.centerX + this.ballX * cos;
+                const ballScreenY = this.platformY + this.ballX * sin - 15; // 小球在平板上方
+                
+                // 绘制小球阴影
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                ctx.beginPath();
+                ctx.ellipse(ballScreenX + 2, this.platformY + this.ballX * sin + 2, 12, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 绘制小球
+                const gradient = ctx.createRadialGradient(ballScreenX - 3, ballScreenY - 3, 0, ballScreenX, ballScreenY, 12);
+                gradient.addColorStop(0, '#ff6b6b');
+                gradient.addColorStop(1, '#c92a2a');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(ballScreenX, ballScreenY, 12, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 绘制小球高光
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.beginPath();
+                ctx.arc(ballScreenX - 3, ballScreenY - 3, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            drawTarget() {
+                const ctx = this.ctx;
+                
+                // 绘制目标区域
+                ctx.strokeStyle = 'rgba(56, 178, 172, 0.5)';
+                ctx.fillStyle = 'rgba(56, 178, 172, 0.1)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                
+                const targetRadius = 30;
+                ctx.beginPath();
+                ctx.arc(this.centerX, this.platformY - 15, targetRadius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                
+                ctx.setLineDash([]);
+                
+                // 绘制目标中心
+                ctx.fillStyle = '#38b2ac';
+                ctx.beginPath();
+                ctx.arc(this.centerX, this.platformY - 15, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // 简单的AI算法（改进的PID控制器 + 学习机制）
+        class BalanceAI {
+            constructor() {
+                this.lastAction = 0;
+                this.memory = [];
+                this.epsilon = 0.9; // 探索率
+                this.epsilonDecay = 0.995;
+                this.epsilonMin = 0.1;
+                this.learningRate = 0.1;
+                
+                // PID参数
+                this.kp = 1.0; // 比例
+                this.kd = 0.5; // 微分
+                this.ki = 0.01; // 积分
+                
+                this.lastError = 0;
+                this.integral = 0;
+                
+                // Q表的简化版本（状态离散化）
+                this.qTable = {};
+                this.reset();
+            }
+            
+            reset() {
+                this.lastError = 0;
+                this.integral = 0;
+                this.epsilon = Math.max(this.epsilonMin, this.epsilon * this.epsilonDecay);
+            }
+            
+            getAction(state) {
+                // 获取PID推荐动作
+                const pidAction = this.getPIDAction(state);
+                
+                // epsilon-greedy策略
+                if (Math.random() < this.epsilon) {
+                    // 探索：随机动作
+                    this.lastAction = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
+                } else {
+                    // 利用：使用PID或学习到的策略
+                    const stateKey = this.discretizeState(state);
+                    const qValues = this.qTable[stateKey];
+                    
+                    if (qValues) {
+                        // 使用Q表
+                        let bestAction = 0;
+                        let bestValue = -Infinity;
+                        for (let action = -1; action <= 1; action++) {
+                            if (qValues[action] > bestValue) {
+                                bestValue = qValues[action];
+                                bestAction = action;
+                            }
+                        }
+                        this.lastAction = bestAction;
+                    } else {
+                        // 使用PID控制器
+                        this.lastAction = pidAction;
+                    }
+                }
+                
+                return this.lastAction;
+            }
+            
+            getPIDAction(state) {
+                const error = state.ballPosition; // 期望位置是0
+                const derivative = error - this.lastError;
+                this.integral += error;
+                
+                // 限制积分项防止积分饱和
+                this.integral = Math.max(-10, Math.min(10, this.integral));
+                
+                const output = this.kp * error + this.kd * derivative + this.ki * this.integral;
+                
+                this.lastError = error;
+                
+                // 将输出转换为动作
+                if (output > 0.1) return 1;  // 顺时针
+                if (output < -0.1) return -1; // 逆时针
+                return 0; // 不动
+            }
+            
+            discretizeState(state) {
+                // 将连续状态离散化为字符串键
+                const pos = Math.round(state.ballPosition * 10) / 10;
+                const vel = Math.round(state.ballVelocity * 10) / 10;
+                const angle = Math.round(state.plateAngle * 10) / 10;
+                return `${pos},${vel},${angle}`;
+            }
+            
+            learn(state, action, reward, nextState, done) {
+                const stateKey = this.discretizeState(state);
+                const nextStateKey = this.discretizeState(nextState);
+                
+                // 初始化Q值
+                if (!this.qTable[stateKey]) {
+                    this.qTable[stateKey] = {'-1': 0, '0': 0, '1': 0};
+                }
+                if (!this.qTable[nextStateKey]) {
+                    this.qTable[nextStateKey] = {'-1': 0, '0': 0, '1': 0};
+                }
+                
+                // Q-learning更新
+                const currentQ = this.qTable[stateKey][action];
+                let maxNextQ = -Infinity;
+                for (let a = -1; a <= 1; a++) {
+                    maxNextQ = Math.max(maxNextQ, this.qTable[nextStateKey][a]);
+                }
+                
+                const target = reward + (done ? 0 : 0.95 * maxNextQ); // gamma = 0.95
+                this.qTable[stateKey][action] += this.learningRate * (target - currentQ);
+            }
+        }
+        
+        // 初始化游戏
+        let game;
+        window.addEventListener('load', () => {
+            game = new GameState();
+        });
+    </script>
+</body>
+</html>
